@@ -49,6 +49,7 @@ const StyledListItemButton = styled(ListItemButton)({
 const StyledListItem = styled(ListItem)({
   display: 'block',
   padding: '4px 8px',
+  borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
 });
 
 interface Block {

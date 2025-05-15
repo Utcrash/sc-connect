@@ -62,6 +62,7 @@ const BlockCard = styled(Card)({
   '&:hover': {
     backgroundColor: '#f5f5f5',
   },
+  borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
 });
 
 const BlockHeader = styled(Box)({
