@@ -89,120 +89,55 @@ const NodeProperties: React.FC<NodePropertiesProps> = ({
   nodes,
   edges,
 }) => {
-  const [policyJson, setPolicyJson] = useState(() => {
-    try {
-      return JSON.stringify(
-        node.data?.block?.block_policy_template
-          ? JSON.parse(node.data.block.block_policy_template)
-          : {},
-        null,
-        2
-      );
-    } catch (e) {
-      return '{}';
-    }
-  });
-  const [mapperJson, setMapperJson] = useState('{}');
-
-  if (!node) return null;
-
-  // Get current source and target nodes
-  const sourceNodes = edges
-    .filter((edge) => edge.target === node.id)
-    .map((edge) => edge.source);
-
-  const targetNodes = edges
-    .filter((edge) => edge.source === node.id)
-    .map((edge) => edge.target);
-
-  // Get available nodes for source/target selection (excluding current node)
-  const availableNodes = nodes.filter((n) => n.id !== node.id);
+  const [name, setName] = useState(node.data.label || '');
+  const [policy, setPolicy] = useState(
+    JSON.stringify(node.data.policy || {}, null, 2)
+  );
 
   const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onNodeUpdate(node.id, { ...node.data, label: event.target.value });
-  };
-
-  const handleSourceChange = (event: any) => {
-    const newSourceIds = event.target.value;
+    const newName = event.target.value;
+    setName(newName);
     onNodeUpdate(node.id, {
       ...node.data,
-      sourceNodes: newSourceIds,
-      connections: {
-        ...node.data.connections,
-        sources: newSourceIds,
-        targets: targetNodes,
-      },
-    });
-  };
-
-  const handleTargetChange = (event: any) => {
-    const newTargetIds = event.target.value;
-    onNodeUpdate(node.id, {
-      ...node.data,
-      targetNodes: newTargetIds,
-      connections: {
-        ...node.data.connections,
-        sources: sourceNodes,
-        targets: newTargetIds,
-      },
+      label: newName,
     });
   };
 
   const handlePolicyChange = (
     event: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
-    setPolicyJson(event.target.value);
+    const newPolicy = event.target.value;
+    setPolicy(newPolicy);
     try {
-      const parsed = JSON.parse(event.target.value);
+      const parsedPolicy = JSON.parse(newPolicy);
       onNodeUpdate(node.id, {
         ...node.data,
-        policy: parsed,
+        policy: parsedPolicy,
       });
-    } catch (e) {
+    } catch (error) {
       // Invalid JSON, don't update
-    }
-  };
-
-  const handleMapperChange = (
-    event: React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    setMapperJson(event.target.value);
-    try {
-      const parsed = JSON.parse(event.target.value);
-      onNodeUpdate(node.id, {
-        ...node.data,
-        mapper: parsed,
-      });
-    } catch (e) {
-      // Invalid JSON, don't update
-    }
-  };
-
-  const handleDelete = () => {
-    if (onNodeDelete && node) {
-      onNodeDelete(node.id);
-      onClose();
     }
   };
 
   return (
     <>
-      <Overlay show={!!node} onClick={onClose} />
-      <Slide direction="right" in={!!node} mountOnEnter unmountOnExit>
+      <Overlay show={true} onClick={onClose} />
+      <Slide direction="right" in={true} mountOnEnter unmountOnExit>
         <PropertiesPanel elevation={4}>
           <Header>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Node Properties
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <IconButton
-                onClick={handleDelete}
-                size="small"
-                sx={{ color: '#d32f2f' }}
-                title="Delete node"
-              >
-                <DeleteIcon />
-              </IconButton>
+            <Box>
+              {onNodeDelete && (
+                <IconButton
+                  onClick={() => onNodeDelete(node.id)}
+                  size="small"
+                  sx={{ mr: 1 }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              )}
               <IconButton onClick={onClose} size="small">
                 <CloseIcon />
               </IconButton>
@@ -210,67 +145,38 @@ const NodeProperties: React.FC<NodePropertiesProps> = ({
           </Header>
           <Content>
             <Section>
+              <SectionTitle variant="subtitle2">Basic Information</SectionTitle>
               <TextField
-                fullWidth
-                label="Node Name"
-                value={node.data?.label || ''}
+                label="Name"
+                value={name}
                 onChange={handleNameChange}
+                fullWidth
+                size="small"
               />
             </Section>
 
             <Section>
-              <FormControl fullWidth>
-                <InputLabel>Source Nodes</InputLabel>
-                <Select
-                  multiple
-                  value={sourceNodes}
-                  onChange={handleSourceChange}
-                  label="Source Nodes"
-                >
-                  {availableNodes.map((n) => (
-                    <MenuItem key={n.id} value={n.id}>
-                      {n.data?.label || n.id}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth sx={{ mt: 2 }}>
-                <InputLabel>Target Nodes</InputLabel>
-                <Select
-                  multiple
-                  value={targetNodes}
-                  onChange={handleTargetChange}
-                  label="Target Nodes"
-                >
-                  {availableNodes.map((n) => (
-                    <MenuItem key={n.id} value={n.id}>
-                      {n.data?.label || n.id}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <SectionTitle variant="subtitle2">Node Type</SectionTitle>
+              <Typography variant="body2" color="textSecondary">
+                {node.data.block?.category || 'Unknown'}
+              </Typography>
             </Section>
 
-            <Divider sx={{ my: 2 }} />
+            <Section>
+              <SectionTitle variant="subtitle2">Description</SectionTitle>
+              <Typography variant="body2" color="textSecondary">
+                {node.data.block?.description || 'No description available'}
+              </Typography>
+            </Section>
 
             <Section>
               <SectionTitle variant="subtitle2">
                 Policy Configuration
               </SectionTitle>
               <StyledTextarea
-                value={policyJson}
+                value={policy}
                 onChange={handlePolicyChange}
-                placeholder="Enter policy configuration in JSON format"
-              />
-            </Section>
-
-            <Section>
-              <SectionTitle variant="subtitle2">Data Mapper</SectionTitle>
-              <StyledTextarea
-                value={mapperJson}
-                onChange={handleMapperChange}
-                placeholder="Enter data mapping configuration in JSON format"
+                placeholder="Enter JSON configuration..."
               />
             </Section>
           </Content>

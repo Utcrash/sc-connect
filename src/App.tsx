@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { styled } from '@mui/material/styles';
 import {
   Box,
@@ -12,9 +12,12 @@ import FlowCanvas from './components/Flow/FlowCanvas';
 import NodeProperties from './components/Properties/NodeProperties';
 import BlockSelectionPanel from './components/BlockSelection/BlockSelectionPanel';
 import ChatPanel from './components/Chat/ChatPanel';
+import LoginPage from './components/Auth/LoginPage';
+import ExportModal from './components/Export/ExportModal';
 import { Node, Edge, MarkerType } from 'reactflow';
 import './App.css';
 import AddIcon from '@mui/icons-material/Add';
+import ExportIcon from '@mui/icons-material/FileDownload';
 import { blocks } from './data/blocks';
 
 const AppContainer = styled('div')({
@@ -41,6 +44,21 @@ const AddBlockButton = styled(Button)({
   position: 'absolute',
   bottom: '32px',
   right: '32px',
+  borderRadius: '28px',
+  padding: '12px 24px',
+  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+  zIndex: 10,
+  backgroundColor: '#0F5EAA',
+  color: '#ffffff',
+  '&:hover': {
+    backgroundColor: '#0D4E8F',
+  },
+});
+
+const ExportButton = styled(Button)({
+  position: 'absolute',
+  bottom: '32px',
+  right: '200px',
   borderRadius: '28px',
   padding: '12px 24px',
   boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
@@ -86,10 +104,61 @@ const TopBar = styled(AppBar)({
 });
 
 const App: React.FC = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [isBlockSelectionOpen, setIsBlockSelectionOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  useEffect(() => {
+    const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    setIsLoggedIn(loggedIn);
+
+    if (loggedIn) {
+      const savedFlow = localStorage.getItem('canvasFlow');
+      if (savedFlow) {
+        const { nodes: savedNodes, edges: savedEdges } = JSON.parse(savedFlow);
+        setNodes(savedNodes);
+        setEdges(savedEdges);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      localStorage.setItem('canvasFlow', JSON.stringify({ nodes, edges }));
+    }
+  }, [nodes, edges, isLoggedIn]);
+
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    setIsLoggedIn(false);
+  };
+
+  const handleExport = (type: 'json' | 'db') => {
+    const flowData = {
+      nodes: nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          policy: node.data.policy || {},
+          mapper: node.data.mapper || {},
+        },
+      })),
+      edges,
+    };
+    console.log('Exporting flow as', type, ':', flowData);
+    setIsExportModalOpen(false);
+  };
+
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   // Helper function to get next vertical position for a node with same source
   const getNextVerticalPosition = (sourceNode: Node): number => {
@@ -260,6 +329,12 @@ const App: React.FC = () => {
   };
 
   const handleCreateFlow = (nodeNames: string[]) => {
+    if (nodeNames[0].toLowerCase() === 'clear') {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+
     // Clear existing nodes and edges
     setNodes([]);
     setEdges([]);
@@ -324,10 +399,18 @@ const App: React.FC = () => {
             SC Connect Flow Designer
           </Typography>
           <UserInfo>
-            <Typography variant="body2">John Doe</Typography>
+            <Typography variant="body2">admin</Typography>
             <Avatar sx={{ width: 32, height: 32, bgcolor: '#E32726' }}>
-              JD
+              A
             </Avatar>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={handleLogout}
+              sx={{ ml: 2 }}
+            >
+              Logout
+            </Button>
           </UserInfo>
         </Toolbar>
       </TopBar>
@@ -342,6 +425,13 @@ const App: React.FC = () => {
             onNodeSelect={setSelectedNode}
             setEdges={setEdges}
           />
+          <ExportButton
+            variant="contained"
+            onClick={() => setIsExportModalOpen(true)}
+            startIcon={<ExportIcon />}
+          >
+            Export
+          </ExportButton>
           <AddBlockButton
             variant="contained"
             onClick={() => setIsBlockSelectionOpen(true)}
@@ -376,6 +466,12 @@ const App: React.FC = () => {
           <ChatPanel onCreateFlow={handleCreateFlow} />
         </ChatPanelWrapper>
       </MainContainer>
+
+      <ExportModal
+        open={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExport}
+      />
     </AppContainer>
   );
 };

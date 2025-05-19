@@ -14,6 +14,9 @@ import ReactFlow, {
   Position,
   XYPosition,
   MarkerType,
+  useKeyPress,
+  useReactFlow,
+  ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { styled } from '@mui/material/styles';
@@ -140,7 +143,7 @@ const createEdge = (sourceId: string, targetId: string): Edge => {
   };
 };
 
-const FlowCanvas: React.FC<FlowCanvasProps> = ({
+const FlowCanvasContent: React.FC<FlowCanvasProps> = ({
   nodes,
   edges,
   onNodeClick,
@@ -149,6 +152,14 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   setEdges,
 }) => {
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [undoStack, setUndoStack] = useState<
+    { nodes: Node[]; edges: Edge[] }[]
+  >([]);
+  const [redoStack, setRedoStack] = useState<
+    { nodes: Node[]; edges: Edge[] }[]
+  >([]);
+  const { setViewport } = useReactFlow();
+  const ctrlPressed = useKeyPress(['Meta', 'Control']);
 
   useEffect(() => {
     // Fetch blocks data
@@ -170,6 +181,12 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     ];
     setBlocks(mockBlocks);
   }, []);
+
+  useEffect(() => {
+    if (nodes.length > 0 || edges.length > 0) {
+      setUndoStack((prev) => [...prev, { nodes, edges }]);
+    }
+  }, [nodes, edges]);
 
   const handleAddBlock = useCallback(
     (block: Block) => {
@@ -216,13 +233,14 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     [nodes, onNodeChange]
   );
 
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    setEdges((eds) => applyEdgeChanges(changes, eds));
-  }, []);
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+    },
+    [setEdges]
+  );
 
-  // Helper function to check if adding an edge would create a cycle
   const wouldCreateCycle = (source: string, target: string): boolean => {
-    // Create a map of node connections
     const connections = new Map<string, Set<string>>();
     edges.forEach((edge) => {
       if (!connections.has(edge.source)) {
@@ -231,13 +249,11 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
       connections.get(edge.source)?.add(edge.target);
     });
 
-    // Add the potential new connection
     if (!connections.has(source)) {
       connections.set(source, new Set());
     }
     connections.get(source)?.add(target);
 
-    // Check for cycles using DFS
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
 
@@ -265,7 +281,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const onConnect = useCallback(
     (params: Connection) => {
       if (params.source && params.target) {
-        // Prevent self-loops
         if (params.source === params.target) {
           return;
         }
@@ -278,6 +293,34 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     },
     [setEdges]
   );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          if (redoStack.length > 0) {
+            const nextState = redoStack[redoStack.length - 1];
+            setRedoStack((prev) => prev.slice(0, -1));
+            setUndoStack((prev) => [...prev, { nodes, edges }]);
+            onNodeChange(nextState.nodes[0]);
+            setEdges(nextState.edges);
+          }
+        } else {
+          if (undoStack.length > 1) {
+            const previousState = undoStack[undoStack.length - 2];
+            setUndoStack((prev) => prev.slice(0, -1));
+            setRedoStack((prev) => [...prev, { nodes, edges }]);
+            onNodeChange(previousState.nodes[0]);
+            setEdges(previousState.edges);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nodes, edges, undoStack, redoStack, onNodeChange, setEdges]);
 
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
     onNodeClick(node);
@@ -311,6 +354,14 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         <Controls />
       </ReactFlow>
     </FlowContainer>
+  );
+};
+
+const FlowCanvas: React.FC<FlowCanvasProps> = (props) => {
+  return (
+    <ReactFlowProvider>
+      <FlowCanvasContent {...props} />
+    </ReactFlowProvider>
   );
 };
 
